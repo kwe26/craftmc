@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<title>Setup — CraftMC</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="center-screen">
+  <div class="card auth-card wide">
+    <div class="brand serif" style="padding:0 0 12px">CraftMC<span class="dot">.</span></div>
+    <h2 class="page-title" style="font-size:22px">Initial setup</h2>
+    <p class="page-sub">Configure the manager. You can change everything later.</p>
+    <form id="setup">
+      <div class="field">
+        <label>Manager password (min 6 chars)</label>
+        <input id="password" type="password" minlength="6" required />
+      </div>
+      <div class="field">
+        <label>PaperMC server.jar URL</label>
+        <input id="paper_url" type="url" placeholder="https://api.papermc.io/v2/projects/paper/versions/.../downloads/...jar" required />
+        <div class="muted" style="margin-top:4px;font-size:12px">Will be downloaded into your server directory as <span class="kbd">server.jar</span> if missing.</div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Server directory</label><input id="server_dir" value="server" /></div>
+        <div class="field"><label>Java path</label><input id="java_path" value="java" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Min RAM (MB)</label><input id="min_ram_mb" type="number" value="1024" min="256" /></div>
+        <div class="field"><label>Max RAM (MB)</label><input id="max_ram_mb" type="number" value="4096" min="512" /></div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>On crash</label>
+          <select id="crash_action">
+            <option value="restart_with_backoff">Restart with backoff</option>
+            <option value="restart">Restart immediately</option>
+            <option value="stop">Stop</option>
+          </select>
+        </div>
+        <div class="field"><label>Max auto-restart attempts</label><input id="auto_restart_max" type="number" value="5" min="0" /></div>
+        <div class="field"><label>Bind host (IP / domain)</label><input id="host" value="0.0.0.0" /></div>
+      </div>
+      <button class="primary" type="submit">Save & download</button>
+    </form>
+    <div id="msg" class="muted" style="margin-top:10px"></div>
+  </div>
+</div>
+<script>
+(async () => {
+  const s = await (await fetch('/api/setup/status')).json();
+  if (s.setup_complete) location.href = '/login';
+})();
+document.getElementById('setup').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = id => document.getElementById(id).value;
+  const body = {
+    password: v('password'),
+    server_dir: v('server_dir'),
+    paper_url: v('paper_url'),
+    min_ram_mb: parseInt(v('min_ram_mb')),
+    max_ram_mb: parseInt(v('max_ram_mb')),
+    java_path: v('java_path'),
+    crash_action: v('crash_action'),
+    auto_restart_max: parseInt(v('auto_restart_max')),
+    host: v('host'),
+  };
+  const msg = document.getElementById('msg');
+  msg.textContent = 'Setting up... downloading server.jar may take a moment.';
+  const r = await fetch('/api/setup', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+  if (!r.ok) { msg.style.color = 'var(--err)'; msg.textContent = (await r.json()).error || 'Setup failed'; return; }
+  const j = await r.json();
+  if (!j.task) { msg.textContent = 'Done. Redirecting to login...'; setTimeout(()=>location.href='/login', 800); return; }
+  // Render a live progress bar driven by /ws/tasks (cookies are not yet set, so poll instead).
+  msg.innerHTML = `
+    <div style="margin-top:6px">Downloading server.jar…</div>
+    <div style="height:8px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:8px">
+      <div id="pbar" style="height:100%;width:0%;background:var(--accent);transition:width .3s"></div>
+    </div>
+    <div id="pinfo" class="muted" style="font-size:12px;margin-top:4px"></div>`;
+  const tid = j.task.id;
+  const human = n => { const u=['B','KB','MB','GB']; let i=0; while(n>=1024 && i<u.length-1){n/=1024;i++;} return n.toFixed(n>=10||i===0?0:1)+' '+u[i]; };
+  const tick = async () => {
+    try {
+      const r = await fetch('/api/setup/task/' + encodeURIComponent(tid));
+      if (!r.ok) return setTimeout(tick, 600);
+      const t = (await r.json()).task;
+      if (!t) return setTimeout(tick, 600);
+      const pct = t.total ? Math.min(100, Math.round((t.progress/t.total)*100)) : null;
+      $('pbar').style.width = (pct ?? 25) + '%';
+      $('pinfo').textContent = t.total ? `${human(t.progress)} / ${human(t.total)} (${pct}%)` : `${human(t.progress)} downloaded…`;
+      if (t.status === 'done') { setTimeout(()=>location.href='/login', 600); return; }
+      if (t.status === 'failed') { msg.style.color='var(--err)'; $('pinfo').textContent = t.message; return; }
+      setTimeout(tick, 400);
+    } catch { setTimeout(tick, 1500); }
+  };
+  function $(id){ return document.getElementById(id); }
+  tick();
+});
+</script>
+</body></html>

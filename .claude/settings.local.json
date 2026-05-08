@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where cargo *)",
+      "Bash(where rustc *)"
+    ]
+  }
+}

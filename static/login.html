@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Login — CraftMC</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="center-screen">
+  <div class="card auth-card">
+    <div class="brand serif" style="padding:0 0 16px">CraftMC<span class="dot">.</span></div>
+    <h2 class="page-title" style="font-size:20px">Sign in</h2>
+    <p class="page-sub">Enter the manager password.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="pw">Password</label>
+        <input id="pw" type="password" required autofocus />
+      </div>
+      <button class="primary" type="submit" style="width:100%">Continue</button>
+    </form>
+    <div id="err" class="muted" style="margin-top:10px;color:var(--err)"></div>
+  </div>
+</div>
+<script>
+(async () => {
+  const status = await (await fetch('/api/setup/status')).json();
+  if (!status.setup_complete) location.href = '/setup';
+})();
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = document.getElementById('pw').value;
+  const r = await fetch('/api/login', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: pw }) });
+  if (r.ok) { location.href = '/control'; }
+  else { document.getElementById('err').textContent = (await r.json()).error || 'Login failed'; }
+});
+</script>
+</body></html>

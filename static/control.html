@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<title>CraftMC — Control</title>
+<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style type="text/tailwindcss">
+  @layer base {
+    button, .btn {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid #d6d1c5;
+      background: #ffffff;
+      color: #1a1a1a;
+      font-size: 13px;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: background .15s, transform .1s, box-shadow .15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:hover, .btn:hover { background: #f4f1ea; }
+    button:active, .btn:active { transform: translateY(1px); }
+    button:disabled, .btn:disabled { opacity: .55; cursor: not-allowed; }
+    button.primary, .btn.primary { background: #c96442; border-color: #c96442; color: #fff; }
+    button.primary:hover, .btn.primary:hover { background: #b3573a; }
+    button.danger, .btn.danger { color: #b3261e; border-color: #e6c2c0; background: #fff; }
+    button.danger:hover, .btn.danger:hover { background: #fbecea; }
+
+    input, select, textarea {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #d6d1c5;
+      background: #ffffff;
+      color: #1a1a1a;
+      font-size: 13px;
+      line-height: 1.4;
+      width: 100%;
+      font-family: inherit;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #c96442;
+      box-shadow: 0 0 0 3px rgba(201,100,66,0.15);
+    }
+    textarea { font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace; line-height: 1.55; }
+    input[type="checkbox"] { width: auto; padding: 0; }
+
+    label { display: block; font-size: 12px; color: #6b6b6b; margin-bottom: 5px; }
+    .field { margin-bottom: 16px; }
+    .row { display: flex; gap: 14px; }
+    .row > * { flex: 1; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px;
+      color: #1a1a1a; font-size: 13.5px;
+      cursor: pointer; user-select: none;
+      transition: background .15s, color .15s, transform .1s;
+    }
+    .nav-item:hover { background: #f0ebe1; }
+    .nav-item:active { transform: translateY(1px); }
+    .nav-item.active { background: #ece6d8; font-weight: 500; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #e8e4dc; }
+    th { font-weight: 500; color: #6b6b6b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; background: #faf9f5; }
+    tr:hover td { background: #f7f4ec; }
+    td .btn, td button { padding: 4px 10px; font-size: 12px; margin-left: 4px; }
+  }
+</style>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#1a1a1a',
+          paper: '#faf9f5',
+          accent: '#c96442',
+          surface: '#ffffff',
+          edge: '#e8e4dc',
+          subtle: '#6b6b6b',
+        },
+        fontFamily: {
+          serif: ['"Tiempos Headline"', '"Source Serif Pro"', 'Georgia', 'serif'],
+          mono: ['ui-monospace', '"Cascadia Mono"', '"JetBrains Mono"', 'Consolas', 'monospace'],
+        },
+        keyframes: {
+          fadeIn: { '0%': { opacity: 0, transform: 'translateY(4px)' }, '100%': { opacity: 1, transform: 'none' } },
+          slideUp: { '0%': { opacity: 0, transform: 'translateY(12px)' }, '100%': { opacity: 1, transform: 'none' } },
+          shimmer: { '0%': { backgroundPosition: '-200px 0' }, '100%': { backgroundPosition: '200px 0' } },
+          pulseGlow: { '0%,100%': { boxShadow: '0 0 0 0 rgba(201,100,66,0.3)' }, '50%': { boxShadow: '0 0 0 6px rgba(201,100,66,0)' } },
+          progressIndeterminate: { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(400%)' } },
+        },
+        animation: {
+          'fade-in': 'fadeIn .25s ease-out',
+          'slide-up': 'slideUp .35s cubic-bezier(.2,.7,.2,1)',
+          'shimmer': 'shimmer 1.6s linear infinite',
+          'pulse-glow': 'pulseGlow 2.4s ease-out infinite',
+          'progress-indet': 'progressIndeterminate 1.4s ease-in-out infinite',
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="bg-paper text-ink antialiased">
+<aside class="fixed left-0 top-0 w-60 h-screen overflow-y-auto border-r border-edge bg-paper flex flex-col px-3 py-5 gap-1 z-30">
+  <div class="font-serif text-2xl font-medium px-2 pb-4">CraftMC<span class="text-accent">.</span></div>
+  <div class="nav-item active" data-view="dashboard">Dashboard</div>
+  <div class="nav-item" data-view="console">Console</div>
+  <div class="nav-item" data-view="config">Configuration</div>
+  <div class="nav-item" data-view="properties">Server properties</div>
+  <div class="nav-item" data-view="messages">Join messages</div>
+  <div class="nav-item" data-view="files">File manager</div>
+  <div class="nav-item" data-view="plugins">Plugins</div>
+  <div class="nav-item" data-view="marketplace">Plugin marketplace</div>
+  <div class="nav-item" data-view="plugin-config">Plugin configs</div>
+  <div class="nav-item" data-view="players">Players</div>
+  <div class="nav-item" data-view="backups">Backups</div>
+  <div class="nav-item" data-view="region">Region editor</div>
+  <div class="nav-item" data-view="logs">Logs</div>
+  <div class="flex-1 min-h-[12px]"></div>
+  <div id="sidebar-status" class="text-xs text-subtle px-2 pb-2 transition-opacity duration-300"></div>
+  <div class="nav-item" id="logoutBtn">Sign out</div>
+</aside>
+<main class="ml-60 px-8 py-6 max-w-[1200px]" id="main"></main>
+
+<!-- Floating tasks panel -->
+<div id="tasks-dock" class="fixed bottom-4 right-4 w-80 space-y-2 z-40 pointer-events-none"></div>
+<div id="toast" class="toast"></div>
+
+<script src="/static/app.js"></script>
+</body></html>
