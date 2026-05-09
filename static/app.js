@@ -898,6 +898,102 @@ views.marketplace = async () => {
   $('#mkQ').focus();
 };
 
+// ---------- Deal records (admin) ----------
+views.deals = async () => {
+  main.innerHTML = `
+    <h1 class="font-serif text-3xl mb-1">Deal records</h1>
+    <p class="text-subtle mb-4">All public deal records. Anyone can create one at <a href="/deals" class="text-accent" target="_blank">/deals</a>; signing happens in-game via the API.</p>
+    <div class="flex items-center gap-2 mb-3">
+      <a class="btn" href="/deals" target="_blank">Open public page</a>
+      <span class="flex-1"></span>
+      <button id="dlRefresh">Refresh</button>
+    </div>
+    <div class="bg-surface border border-edge rounded-xl overflow-hidden animate-fade-in">
+      <table><thead><tr><th>Title</th><th>ID</th><th>Status</th><th>Parties</th><th>Created</th><th></th></tr></thead><tbody id="dlRows"></tbody></table>
+    </div>`;
+  $('#dlRefresh').onclick = dlLoad;
+  dlLoad();
+};
+async function dlLoad() {
+  const r = await api('/deals');
+  const rows = $('#dlRows'); rows.innerHTML = '';
+  for (const d of r.deals) {
+    const status = d.status;
+    const cls = ({signed:'bg-emerald-100 text-emerald-800',partial:'bg-yellow-100 text-yellow-800',rejected:'bg-rose-100 text-rose-800',pending:'bg-edge text-subtle'})[status] || 'bg-edge text-subtle';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="font-medium">${escapeHtml(d.title)}</td>
+      <td class="muted font-mono">${escapeHtml(d.id)}</td>
+      <td><span class="px-2 py-0.5 rounded-full text-[11px] ${cls}">${status}</span></td>
+      <td class="muted">${escapeHtml(d.parties.join(', '))}</td>
+      <td class="muted">${new Date(d.created_at).toLocaleString()}</td>
+      <td style="text-align:right">
+        <a class="btn" href="/deals/${encodeURIComponent(d.id)}" target="_blank">View</a>
+        <button class="danger" data-act="del">Delete</button>
+      </td>`;
+    tr.querySelector('[data-act="del"]').onclick = async () => {
+      if (!confirm(`Delete deal ${d.id}?`)) return;
+      await api('/deals/' + encodeURIComponent(d.id), { method:'DELETE' });
+      dlLoad();
+    };
+    rows.appendChild(tr);
+  }
+  if (!r.deals.length) rows.innerHTML = `<tr><td colspan="6" class="muted italic" style="padding:18px">No deals yet.</td></tr>`;
+}
+
+// ---------- API docs ----------
+views['api-docs'] = async () => {
+  const origin = location.origin;
+  const ex = (url) => `<div class="bg-paper border border-edge rounded-md px-3 py-2 font-mono text-[12px] flex items-center justify-between gap-2 mt-2">
+    <span class="truncate">${escapeHtml(url)}</span>
+    <button data-copy="${escapeHtml(url)}">Copy</button></div>`;
+  const endpoint = (method, path, desc, examples=[]) => `
+    <div class="bg-surface border border-edge rounded-xl p-4 animate-fade-in">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="px-2 py-0.5 rounded text-[11px] font-mono ${method==='GET'?'bg-emerald-100 text-emerald-800':'bg-orange-100 text-orange-800'}">${method}</span>
+        <span class="font-mono text-[13px]">${escapeHtml(path)}</span>
+      </div>
+      <div class="text-[13px] text-subtle">${desc}</div>
+      ${examples.map(e => ex(origin + e)).join('')}
+    </div>`;
+  main.innerHTML = `
+    <h1 class="font-serif text-3xl mb-1">API documentation</h1>
+    <p class="text-subtle mb-4">Public Deal Sign API for in-game plugins. All <span class="kbd">/mcsapi/*</span> endpoints are unauthenticated and return JSON.</p>
+
+    <div class="space-y-3">
+      ${endpoint('GET', '/mcsapi/record/list', 'List all deal records.', ['/mcsapi/record/list'])}
+      ${endpoint('GET', '/mcsapi/record/view?dealId=&lt;id&gt;', 'Fetch a single record with signatures, rejections, and current status.', ['/mcsapi/record/view?dealId=DEAL_ID'])}
+      ${endpoint('POST', '/mcsapi/record/create', 'Create a new unsigned deal. Body: <code>{ "title": "...", "body": "...", "parties": ["Alice","Bob"], "by": "optional creator" }</code>.', [])}
+      ${endpoint('GET', '/mcsapi/record/create', 'Convenience GET form for creating a deal.', ['/mcsapi/record/create?title=Trade&parties=Alice,Bob&body=Terms'])}
+      ${endpoint('GET', '/mcsapi/record/approve?name=&lt;user&gt;&amp;dealId=&lt;id&gt;', 'Sign / approve a deal as the given player. Errors if the player is not a party, has already signed, or has rejected.', ['/mcsapi/record/approve?name=Alice&dealId=DEAL_ID'])}
+      ${endpoint('GET', '/mcsapi/record/reject?name=&lt;user&gt;&amp;dealId=&lt;id&gt;&amp;reason=...', 'Reject a deal. The whole record becomes <span class="kbd">rejected</span>.', ['/mcsapi/record/reject?name=Alice&dealId=DEAL_ID&reason=changed%20mind'])}
+    </div>
+
+    <h2 class="font-serif text-2xl mt-8 mb-2">Status values</h2>
+    <ul class="list-disc pl-6 text-[13px] text-subtle space-y-1">
+      <li><span class="kbd">pending</span> — no one has signed yet.</li>
+      <li><span class="kbd">partial</span> — some parties have signed; others haven't.</li>
+      <li><span class="kbd">signed</span> — every listed party has signed.</li>
+      <li><span class="kbd">rejected</span> — at least one party rejected.</li>
+    </ul>
+
+    <h2 class="font-serif text-2xl mt-8 mb-2">Plugin integration</h2>
+    <div class="bg-surface border border-edge rounded-xl p-4">
+      <p class="text-[13px] mb-2">A reference PaperMC plugin lives in the source tree under <span class="kbd">mcs_plugin/</span>. It exposes:</p>
+      <ul class="list-disc pl-6 text-[13px] text-subtle space-y-1">
+        <li><span class="kbd">/sign &lt;dealId&gt;</span> — calls <span class="kbd">/mcsapi/record/approve</span> with the player's username.</li>
+        <li><span class="kbd">/reject &lt;dealId&gt; [reason...]</span> — calls <span class="kbd">/mcsapi/record/reject</span>.</li>
+        <li><span class="kbd">/deal &lt;dealId&gt;</span> — calls <span class="kbd">/mcsapi/record/view</span> and prints the title, terms, and parties.</li>
+        <li><span class="kbd">/deals</span> — lists pending/partial deals where the player is a party.</li>
+      </ul>
+      <p class="text-[13px] text-subtle mt-2">Configure the manager URL in <span class="kbd">plugins/DealSign/config.yml</span> after the first run.</p>
+    </div>`;
+
+  $$('#main [data-copy]').forEach(b => b.onclick = () => {
+    navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copied','ok'));
+  });
+};
+
 // ---------- Boot ----------
 (async () => {
   try { await api('/me'); } catch { return; }

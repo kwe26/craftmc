@@ -25,6 +25,8 @@ const STATIC_LOGIN: &str = include_str!("../static/login.html");
 const STATIC_SETUP: &str = include_str!("../static/setup.html");
 const STATIC_APP_JS: &str = include_str!("../static/app.js");
 const STATIC_STYLE_CSS: &str = include_str!("../static/style.css");
+const STATIC_DEALS: &str = include_str!("../static/deals.html");
+const STATIC_DEAL: &str = include_str!("../static/deal.html");
 
 pub fn router(state: AppState) -> Router {
     crate::backup::spawn_auto_backup_task(state.clone());
@@ -73,20 +75,33 @@ pub fn router(state: AppState) -> Router {
         .route("/players", get(get_players))
         .route("/players/kick", post(kick_player))
         .route("/marketplace/search", get(marketplace_search))
-        .route("/marketplace/install", post(marketplace_install));
+        .route("/marketplace/install", post(marketplace_install))
+        .route("/deals", get(admin_list_deals))
+        .route("/deals/:id", delete(admin_delete_deal));
 
     let ws_router = Router::new()
         .route("/ws/console", get(console_ws))
         .route("/ws/tasks", get(tasks_ws));
+
+    // Public mcsapi for the in-game plugin / external integrations.
+    let mcsapi = Router::new()
+        .route("/record/list", get(mcs_list))
+        .route("/record/view", get(mcs_view))
+        .route("/record/create", post(mcs_create_post).get(mcs_create_get))
+        .route("/record/approve", get(mcs_approve))
+        .route("/record/reject", get(mcs_reject));
 
     Router::new()
         .route("/", get(root_redirect))
         .route("/control", get(serve_control))
         .route("/login", get(serve_login))
         .route("/setup", get(serve_setup))
+        .route("/deals", get(serve_deals))
+        .route("/deals/:id", get(serve_deal))
         .route("/static/app.js", get(serve_app_js))
         .route("/static/style.css", get(serve_style_css))
         .nest("/api", api)
+        .nest("/mcsapi", mcsapi)
         .merge(ws_router)
         .layer(DefaultBodyLimit::max(512 * 1024 * 1024)) // 512 MiB uploads
         .layer(axum::middleware::from_fn_with_state(state.clone(), require_auth))
@@ -100,6 +115,8 @@ async fn root_redirect() -> Response {
 async fn serve_control() -> impl IntoResponse { html(STATIC_CONTROL) }
 async fn serve_login() -> impl IntoResponse { html(STATIC_LOGIN) }
 async fn serve_setup() -> impl IntoResponse { html(STATIC_SETUP) }
+async fn serve_deals() -> impl IntoResponse { html(STATIC_DEALS) }
+async fn serve_deal(AxPath(_id): AxPath<String>) -> impl IntoResponse { html(STATIC_DEAL) }
 
 async fn serve_app_js() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8")], STATIC_APP_JS)
@@ -708,12 +725,67 @@ async fn setup_task_progress(State(s): State<AppState>, AxPath(id): AxPath<Strin
     Ok(Json(json!({ "task": t })))
 }
 
+// ---------- mcsapi (public) ----------
+
+#[derive(Deserialize)]
+struct McsViewQuery { #[serde(rename = "dealId")] deal_id: String }
+#[derive(Deserialize)]
+struct McsApproveQuery { name: String, #[serde(rename = "dealId")] deal_id: String }
+#[derive(Deserialize)]
+struct McsRejectQuery { name: String, #[serde(rename = "dealId")] deal_id: String, reason: Option<String> }
+#[derive(Deserialize)]
+struct McsCreateGet { title: String, body: Option<String>, parties: String, by: Option<String> }
+#[derive(Deserialize)]
+struct McsCreatePost { title: String, body: Option<String>, parties: Vec<String>, by: Option<String> }
+
+async fn mcs_list(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(json!({ "ok": true, "records": s.inner.deals.list() }))
+}
+
+async fn mcs_view(State(s): State<AppState>, Query(q): Query<McsViewQuery>) -> Result<Json<serde_json::Value>, ApiError> {
+    let v = s.inner.deals.get(&q.deal_id).ok_or_else(|| ApiError::status(StatusCode::NOT_FOUND, "deal not found"))?;
+    Ok(Json(json!({ "ok": true, "record": v })))
+}
+
+async fn mcs_approve(State(s): State<AppState>, Query(q): Query<McsApproveQuery>) -> Result<Json<serde_json::Value>, ApiError> {
+    let v = s.inner.deals.approve(&q.deal_id, &q.name).await.map_err(ApiError::bad_str)?;
+    Ok(Json(json!({ "ok": true, "record": v })))
+}
+
+async fn mcs_reject(State(s): State<AppState>, Query(q): Query<McsRejectQuery>) -> Result<Json<serde_json::Value>, ApiError> {
+    let v = s.inner.deals.reject(&q.deal_id, &q.name, q.reason).await.map_err(ApiError::bad_str)?;
+    Ok(Json(json!({ "ok": true, "record": v })))
+}
+
+async fn mcs_create_post(State(s): State<AppState>, Json(r): Json<McsCreatePost>) -> Result<Json<serde_json::Value>, ApiError> {
+    let v = s.inner.deals.create(r.title, r.body.unwrap_or_default(), r.parties, r.by).await.map_err(ApiError::bad_str)?;
+    Ok(Json(json!({ "ok": true, "record": v })))
+}
+
+async fn mcs_create_get(State(s): State<AppState>, Query(q): Query<McsCreateGet>) -> Result<Json<serde_json::Value>, ApiError> {
+    let parties: Vec<String> = q.parties.split(',').map(|s| s.trim().to_string()).collect();
+    let v = s.inner.deals.create(q.title, q.body.unwrap_or_default(), parties, q.by).await.map_err(ApiError::bad_str)?;
+    Ok(Json(json!({ "ok": true, "record": v })))
+}
+
+// ---------- Admin deals ----------
+
+async fn admin_list_deals(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(json!({ "deals": s.inner.deals.list() }))
+}
+
+async fn admin_delete_deal(State(s): State<AppState>, AxPath(id): AxPath<String>) -> Result<Json<serde_json::Value>, ApiError> {
+    s.inner.deals.delete(&id).await.map_err(ApiError::server)?;
+    Ok(Json(json!({"ok":true})))
+}
+
 // ---------- Errors ----------
 
 pub struct ApiError { status: StatusCode, msg: String }
 
 impl ApiError {
     fn bad(msg: impl Into<String>) -> Self { Self { status: StatusCode::BAD_REQUEST, msg: msg.into() } }
+    fn bad_str(e: impl std::fmt::Display) -> Self { Self { status: StatusCode::BAD_REQUEST, msg: e.to_string() } }
     fn server(e: impl std::fmt::Display) -> Self { Self { status: StatusCode::INTERNAL_SERVER_ERROR, msg: e.to_string() } }
     fn status(s: StatusCode, msg: impl Into<String>) -> Self { Self { status: s, msg: msg.into() } }
 }

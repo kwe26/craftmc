@@ -1,0 +1,6 @@
+# DealSign plugin configuration
+# Base URL of the CraftMC manager. Do NOT include a trailing slash.
+api-base: "http://localhost:3000"
+
+# HTTP request timeout in seconds.
+timeout-seconds: 10

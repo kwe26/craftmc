@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::console::ConsoleBuffer;
+use crate::deals::DealStore;
 use crate::metrics::Metrics;
 use crate::players::Players;
 use crate::server::ServerProc;
@@ -22,6 +23,7 @@ pub struct Inner {
     pub metrics: Metrics,
     pub tasks: TaskRegistry,
     pub players: Players,
+    pub deals: DealStore,
 }
 
 impl AppState {
@@ -35,6 +37,7 @@ impl AppState {
         let metrics = Metrics::new(180);
         let tasks = TaskRegistry::new();
         let players = Players::new();
+        let deals = DealStore::load().await?;
         let state = Self {
             inner: Arc::new(Inner {
                 config: RwLock::new(config),
@@ -44,6 +47,7 @@ impl AppState {
                 metrics,
                 tasks,
                 players,
+                deals,
             }),
         };
         crate::metrics::spawn_collector(state.clone());

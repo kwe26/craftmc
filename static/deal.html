@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Deal Record — CraftMC</title>
+<link rel="stylesheet" href="/static/style.css" />
+<style>
+  body { background: #faf9f5; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; }
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom: 18px; }
+  .brand { font-family: "Tiempos Headline","Source Serif Pro",Georgia,serif; font-size:22px; }
+  .brand .dot { color: var(--accent); }
+  .nav-link { color: var(--text-muted); font-size: 13px; }
+  h1 { font-family: "Tiempos Headline","Source Serif Pro",Georgia,serif; font-size: 26px; margin: 0 0 6px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; border:1px solid var(--border-strong); }
+  .pill.signed { background:#effaf2; border-color:#cfe6d5; color:var(--ok); }
+  .pill.partial { background:#fbf4dc; border-color:#ecddb1; color:var(--warn); }
+  .pill.rejected { background:#fbecea; border-color:#e6c2c0; color:var(--err); }
+  .pill.pending { background:#f0ebe1; }
+  .body { white-space: pre-wrap; font-family: ui-monospace,"Cascadia Mono",Consolas,monospace; background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; font-size:13px; }
+  .party { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); }
+  .party:last-child { border-bottom:none; }
+  .party .head { width:28px; height:28px; border-radius:6px; background:var(--border); }
+  .party .meta { flex:1; min-width:0; }
+  .party .name { font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">CraftMC<span class="dot">.</span></div>
+    <a href="/deals" class="nav-link">← All records</a>
+    <span style="flex:1"></span>
+    <a href="/login" class="nav-link">Manager login →</a>
+  </div>
+  <div id="root">Loading…</div>
+</div>
+<script>
+const escapeHtml = s => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const id = decodeURIComponent(location.pathname.split('/').pop());
+
+async function load() {
+  try {
+    const r = await fetch('/mcsapi/record/view?dealId=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('root').innerHTML = '<div class="card" style="color:var(--err)">'+escapeHtml(j.error || 'Not found')+'</div>';
+      return;
+    }
+    render(j.record);
+  } catch (e) {
+    document.getElementById('root').textContent = e.message;
+  }
+}
+function render(rec) {
+  const created = new Date(rec.created_at).toLocaleString();
+  const sigBy = new Map(rec.signatures.map(s => [s.name.toLowerCase(), s]));
+  const rejBy = new Map(rec.rejections.map(s => [s.name.toLowerCase(), s]));
+  const partiesHtml = rec.parties.map(p => {
+    const sig = sigBy.get(p.toLowerCase());
+    const rej = rejBy.get(p.toLowerCase());
+    let badge;
+    if (rej) badge = `<span class="pill rejected" title="${escapeHtml(rej.reason||'')}">rejected ${new Date(rej.rejected_at).toLocaleString()}</span>`;
+    else if (sig) badge = `<span class="pill signed">signed ${new Date(sig.signed_at).toLocaleString()}</span>`;
+    else badge = `<span class="pill pending">awaiting</span>`;
+    return `<div class="party">
+      <img class="head" src="https://mc-heads.net/avatar/${encodeURIComponent(p)}/28" alt=""/>
+      <div class="meta"><div class="name">${escapeHtml(p)}</div></div>
+      ${badge}
+    </div>`;
+  }).join('');
+  document.getElementById('root').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <h1 style="margin:0;flex:1">${escapeHtml(rec.title)}</h1>
+      <span class="pill ${rec.status}">${rec.status}</span>
+    </div>
+    <div class="muted" style="margin-bottom:18px;font-size:13px">
+      #${escapeHtml(rec.id)} · created ${created}${rec.created_by ? ' by ' + escapeHtml(rec.created_by) : ''}
+    </div>
+
+    ${rec.body ? `<div class="body" style="margin-bottom:18px">${escapeHtml(rec.body)}</div>` : ''}
+
+    <h3 style="font-size:14px;margin:0 0 8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Parties</h3>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:18px">${partiesHtml}</div>
+
+    <h3 style="font-size:14px;margin:0 0 8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">How to sign</h3>
+    <div class="card">
+      <p style="margin:0 0 6px">In-game, run the plugin command:</p>
+      <pre class="body" style="margin:0">/sign ${escapeHtml(rec.id)}</pre>
+      <p class="muted" style="margin:10px 0 6px;font-size:12px">Or call the API directly:</p>
+      <pre class="body" style="margin:0">GET /mcsapi/record/approve?name=&lt;username&gt;&amp;dealId=${escapeHtml(rec.id)}</pre>
+    </div>`;
+}
+load();
+</script>
+</body></html>

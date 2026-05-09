@@ -58,7 +58,10 @@ pub async fn require_auth(
         || path == "/login"
         || path == "/setup"
         || path == "/"
-        || path.starts_with("/static/");
+        || path.starts_with("/static/")
+        || path.starts_with("/mcsapi/")
+        || path == "/deals"
+        || path.starts_with("/deals/");
     if public {
         return Ok(next.run(req).await);
     }

@@ -2,6 +2,7 @@ mod auth;
 mod backup;
 mod config;
 mod console;
+mod deals;
 mod files;
 mod marketplace;
 mod metrics;

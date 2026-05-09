@@ -1,0 +1,19 @@
+name: DealSign
+version: 1.0.0
+main: dev.craftmc.dealsign.DealSignPlugin
+api-version: '1.21'
+authors: [CraftMC]
+description: Lets players sign / reject public deal records via the CraftMC manager API.
+commands:
+  sign:
+    description: Sign a deal record by id.
+    usage: /sign <dealId>
+  reject:
+    description: Reject a deal record by id, optional reason.
+    usage: /reject <dealId> [reason...]
+  deal:
+    description: Show details of a deal record.
+    usage: /deal <dealId>
+  deals:
+    description: List deals you are a party to.
+    usage: /deals
