@@ -126,7 +126,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 async function loadDeals() {
   try {
     const r = await fetch('/mcsapi/record/list');
-    const deals = await r.json();
+    const response = await r.json();
+    const deals = response.records || [];
     const list = document.getElementById('list');
     if (deals.length === 0) {
       list.innerHTML = '<div style="padding:14px" class="muted">No deals yet</div>';
