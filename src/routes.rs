@@ -89,7 +89,9 @@ pub fn router(state: AppState) -> Router {
         .route("/record/view", get(mcs_view))
         .route("/record/create", post(mcs_create_post).get(mcs_create_get))
         .route("/record/approve", get(mcs_approve))
-        .route("/record/reject", get(mcs_reject));
+        .route("/record/reject", get(mcs_reject))
+        .route("/messages", get(get_messages))
+        .route("/send_message", post(send_message));
 
     Router::new()
         .route("/", get(root_redirect))
@@ -777,6 +779,49 @@ async fn admin_list_deals(State(s): State<AppState>) -> Json<serde_json::Value> 
 async fn admin_delete_deal(State(s): State<AppState>, AxPath(id): AxPath<String>) -> Result<Json<serde_json::Value>, ApiError> {
     s.inner.deals.delete(&id).await.map_err(ApiError::server)?;
     Ok(Json(json!({"ok":true})))
+}
+
+// ---------- Messages (Player chat/join/leave) ----------
+
+#[derive(Deserialize)]
+struct SendMessageReq {
+    name: String,
+    content: String,
+    #[serde(default)]
+    message_type: String,
+}
+
+#[derive(Deserialize)]
+struct MessagesQuery {
+    page: Option<u32>,
+}
+
+async fn get_messages(State(s): State<AppState>, Query(q): Query<MessagesQuery>) -> Json<serde_json::Value> {
+    let page = q.page.unwrap_or(1);
+    let page_data = s.inner.messages.get_page(page);
+    Json(serde_json::to_value(page_data).unwrap_or_else(|_| json!({"error": "serialization failed"})))
+}
+
+async fn send_message(State(s): State<AppState>, Json(req): Json<SendMessageReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::messages::MessageType;
+    
+    // Validate player name
+    if !crate::players::is_valid_name_pub(&req.name) {
+        return Err(ApiError::bad("invalid player name"));
+    }
+    
+    // Parse message type
+    let msg_type = match req.message_type.as_str() {
+        "join" => MessageType::Join,
+        "leave" => MessageType::Leave,
+        "chat" | _ => MessageType::Chat,
+    };
+    
+    let message = s.inner.messages.add(req.name, msg_type, req.content)
+        .await
+        .map_err(ApiError::server)?;
+    
+    Ok(Json(json!({ "ok": true, "message": message })))
 }
 
 // ---------- Errors ----------

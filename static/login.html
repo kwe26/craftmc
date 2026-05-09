@@ -4,38 +4,116 @@
 <meta charset="utf-8" />
 <title>Login — CraftMC</title>
 <link rel="stylesheet" href="/static/style.css" />
+<style>
+  body { background: #faf9f5; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom: 18px; }
+  .brand { font-family: "Tiempos Headline","Source Serif Pro",Georgia,serif; font-size:22px; }
+  .brand .dot { color: var(--accent); }
+  .nav-link { color: var(--text-muted); font-size: 13px; cursor: pointer; user-select: none; }
+  .nav-link:hover { text-decoration: underline; }
+  .nav-link.active { color: #1a1a1a; font-weight: 500; }
+  .tabs { display: flex; gap: 20px; border-bottom: 1px solid #e8e4dc; margin-bottom: 24px; }
+  .tab { padding: 8px 0; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; color: var(--text-muted); user-select: none; }
+  .tab:hover { color: #1a1a1a; }
+  .tab.active { color: #1a1a1a; border-bottom-color: #c96442; font-weight: 500; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  h1 { font-family: "Tiempos Headline","Source Serif Pro",Georgia,serif; font-size: 28px; margin: 0 0 6px; }
+  .sub { color: var(--text-muted); margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .deal { transition: transform .15s, box-shadow .15s; }
+  .deal:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.05); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; border:1px solid var(--border-strong); }
+  .pill.signed { background:#effaf2; border-color:#cfe6d5; color:var(--ok); }
+  .pill.partial { background:#fbf4dc; border-color:#ecddb1; color:var(--warn); }
+  .pill.rejected { background:#fbecea; border-color:#e6c2c0; color:var(--err); }
+  .pill.pending { background:#f0ebe1; }
+  .center-auth { max-width: 460px; margin: 0 auto; }
+</style>
 </head>
 <body>
-<div class="center-screen">
-  <div class="card auth-card">
-    <div class="brand serif" style="padding:0 0 16px">CraftMC<span class="dot">.</span></div>
-    <h2 class="page-title" style="font-size:20px">Sign in</h2>
-    <p class="page-sub">Enter the manager password.</p>
-    <form id="loginForm">
-      <div class="field">
-        <label for="pw">Password</label>
-        <input id="pw" type="password" required autofocus />
-      </div>
-      <button class="primary" type="submit" style="width:100%">Continue</button>
-    </form>
-    <div id="err" class="muted" style="margin-top:10px;color:var(--err)"></div>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">CraftMC<span class="dot">.</span></div>
   </div>
 
-  <div class="card auth-card" style="margin-top:14px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="flex:1">
-        <div style="font-weight:500">Public Deal Records</div>
-        <div class="muted" style="font-size:12px">Open ledger of in-game deals — anyone can create one, parties sign in-game.</div>
+  <div class="tabs">
+    <div class="tab active" data-tab="deals">Public Deal Records</div>
+    <div class="tab" data-tab="login">Manager Login</div>
+  </div>
+
+  <!-- Deals Tab -->
+  <div class="tab-content active" id="deals-tab">
+    <h1>Public Deal Records</h1>
+    <p class="sub">Open ledger of in-game deals. Anyone can create one; parties sign or reject it from inside the Minecraft server using the <span class="kbd">/sign</span> command.</p>
+
+    <div class="grid">
+      <div>
+        <h2 style="font-size:16px;margin:6px 0 10px">All records</h2>
+        <div id="list" class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px" class="muted">Loading…</div>
+        </div>
       </div>
-      <a class="btn primary" href="/deals">Open</a>
+
+      <div>
+        <h2 style="font-size:16px;margin:6px 0 10px">Create a new deal</h2>
+        <form id="newForm" class="card" autocomplete="off">
+          <div class="field">
+            <label>Title</label>
+            <input type="text" id="title" required />
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <textarea id="body" required style="min-height:100px"></textarea>
+          </div>
+          <div class="field">
+            <label>Parties (comma-separated names)</label>
+            <input type="text" id="parties" placeholder="Alice, Bob, Charlie" required />
+          </div>
+          <button type="submit" class="primary" style="width:100%">Create Deal</button>
+          <div id="newErr" class="muted" style="margin-top:10px;color:var(--err)"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Tab -->
+  <div class="tab-content" id="login-tab">
+    <div class="center-auth">
+      <h1 style="font-size:24px;margin-bottom:8px">Manager Sign in</h1>
+      <p class="sub" style="margin-bottom:20px">Enter the manager password.</p>
+      <form id="loginForm" class="card">
+        <div class="field">
+          <label for="pw">Password</label>
+          <input id="pw" type="password" required autofocus />
+        </div>
+        <button class="primary" type="submit" style="width:100%">Continue</button>
+      </form>
+      <div id="err" class="muted" style="margin-top:10px;color:var(--err)"></div>
     </div>
   </div>
 </div>
+
 <script>
 (async () => {
   const status = await (await fetch('/api/setup/status')).json();
   if (!status.setup_complete) location.href = '/setup';
 })();
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.getAttribute('data-tab');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tabName + '-tab').classList.add('active');
+  });
+});
+
+// Login form
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const pw = document.getElementById('pw').value;
@@ -43,5 +121,52 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   if (r.ok) { location.href = '/control'; }
   else { document.getElementById('err').textContent = (await r.json()).error || 'Login failed'; }
 });
+
+// Load deals
+async function loadDeals() {
+  try {
+    const r = await fetch('/mcsapi/record/list');
+    const deals = await r.json();
+    const list = document.getElementById('list');
+    if (deals.length === 0) {
+      list.innerHTML = '<div style="padding:14px" class="muted">No deals yet</div>';
+      return;
+    }
+    list.innerHTML = deals.map(d => `
+      <div class="card" style="margin:0;border-radius:0;border-bottom:1px solid #e8e4dc;padding:12px;cursor:pointer" onclick="window.open('/deals/${d.id}', '_blank')">
+        <div style="font-weight:500;margin-bottom:4px">${d.title}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${d.body.substring(0, 60)}${d.body.length > 60 ? '...' : ''}</div>
+        <span class="pill ${d.status}">${d.status}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// Create deal
+document.getElementById('newForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const title = document.getElementById('title').value;
+    const body = document.getElementById('body').value;
+    const parties = document.getElementById('parties').value.split(',').map(p => p.trim()).filter(p => p);
+    const r = await fetch('/mcsapi/record/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, body, parties })
+    });
+    if (r.ok) {
+      document.getElementById('newForm').reset();
+      loadDeals();
+    } else {
+      document.getElementById('newErr').textContent = (await r.json()).error || 'Failed to create deal';
+    }
+  } catch (e) {
+    document.getElementById('newErr').textContent = e.message;
+  }
+});
+
+loadDeals();
 </script>
 </body></html>

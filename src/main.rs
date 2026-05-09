@@ -5,6 +5,7 @@ mod console;
 mod deals;
 mod files;
 mod marketplace;
+mod messages;
 mod metrics;
 mod players;
 mod plugins;

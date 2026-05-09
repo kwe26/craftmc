@@ -38,6 +38,8 @@ public final class DealSignPlugin extends JavaPlugin {
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(getConfig().getInt("timeout-seconds", 10)))
                 .build();
+        // Register message event listeners
+        getServer().getPluginManager().registerEvents(new MessageListeners(this, http, apiBase), this);
         getLogger().info("DealSign enabled — api-base=" + apiBase);
     }
 
