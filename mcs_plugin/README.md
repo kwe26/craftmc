@@ -4,12 +4,18 @@ In-game commands wired to the manager's public `/mcsapi/*` endpoints.
 
 ## Build
 
+Requires JDK 21 (Paper 1.21+ ships Java 21 bytecode).
+
 ```
 cd mcs_plugin
-mvn package
+gradle build
 ```
 
-Output: `target/DealSign.jar`. Drop it into your server's `plugins/` directory.
+Output: `build/libs/DealSign.jar`. Drop it into your server's `plugins/` directory.
+
+If you don't have Gradle installed, the GitHub Actions workflow at
+`.github/workflows/build.yml` builds it for you on every push and attaches it
+to releases on `v*` tags.
 
 ## Configure
 

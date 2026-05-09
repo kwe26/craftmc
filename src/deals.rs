@@ -130,37 +130,39 @@ impl DealStore {
 
     pub async fn approve(&self, id: &str, name: &str) -> Result<DealView> {
         if name.trim().is_empty() { return Err(anyhow!("name required")); }
-        let mut g = self.inner.write();
-        let deal = g.get_mut(id).ok_or_else(|| anyhow!("deal not found"))?;
-        if !deal.parties.iter().any(|p| eq_ci(p, name)) {
-            return Err(anyhow!("'{name}' is not a party to this deal"));
-        }
-        if deal.signatures.iter().any(|s| eq_ci(&s.name, name)) {
-            return Err(anyhow!("'{name}' has already signed"));
-        }
-        if deal.rejections.iter().any(|r| eq_ci(&r.name, name)) {
-            return Err(anyhow!("'{name}' has already rejected"));
-        }
-        deal.signatures.push(Signature { name: name.to_string(), signed_at: Utc::now() });
-        let view = deal.view();
-        drop(g);
+        let view = {
+            let mut g = self.inner.write();
+            let deal = g.get_mut(id).ok_or_else(|| anyhow!("deal not found"))?;
+            if !deal.parties.iter().any(|p| eq_ci(p, name)) {
+                return Err(anyhow!("'{}' is not a party to this deal", name));
+            }
+            if deal.signatures.iter().any(|s| eq_ci(&s.name, name)) {
+                return Err(anyhow!("'{}' has already signed", name));
+            }
+            if deal.rejections.iter().any(|r| eq_ci(&r.name, name)) {
+                return Err(anyhow!("'{}' has already rejected", name));
+            }
+            deal.signatures.push(Signature { name: name.to_string(), signed_at: Utc::now() });
+            deal.view()
+        };
         self.save().await?;
         Ok(view)
     }
 
     pub async fn reject(&self, id: &str, name: &str, reason: Option<String>) -> Result<DealView> {
         if name.trim().is_empty() { return Err(anyhow!("name required")); }
-        let mut g = self.inner.write();
-        let deal = g.get_mut(id).ok_or_else(|| anyhow!("deal not found"))?;
-        if !deal.parties.iter().any(|p| eq_ci(p, name)) {
-            return Err(anyhow!("'{name}' is not a party to this deal"));
-        }
-        if deal.rejections.iter().any(|r| eq_ci(&r.name, name)) {
-            return Err(anyhow!("'{name}' has already rejected"));
-        }
-        deal.rejections.push(Rejection { name: name.to_string(), rejected_at: Utc::now(), reason });
-        let view = deal.view();
-        drop(g);
+        let view = {
+            let mut g = self.inner.write();
+            let deal = g.get_mut(id).ok_or_else(|| anyhow!("deal not found"))?;
+            if !deal.parties.iter().any(|p| eq_ci(p, name)) {
+                return Err(anyhow!("'{}' is not a party to this deal", name));
+            }
+            if deal.rejections.iter().any(|r| eq_ci(&r.name, name)) {
+                return Err(anyhow!("'{}' has already rejected", name));
+            }
+            deal.rejections.push(Rejection { name: name.to_string(), rejected_at: Utc::now(), reason });
+            deal.view()
+        };
         self.save().await?;
         Ok(view)
     }

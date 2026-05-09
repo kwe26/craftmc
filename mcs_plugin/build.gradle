@@ -1,0 +1,39 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.craftmc'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'papermc'
+        url = 'https://repo.papermc.io/repository/maven-public/'
+    }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(version: project.version, name: project.name)
+    }
+}
+
+jar {
+    archiveFileName = 'DealSign.jar'
+}
+
+tasks.named('build') {
+    dependsOn jar
+}
